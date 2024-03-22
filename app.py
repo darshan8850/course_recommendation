@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,9 +6,15 @@ from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignK
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import Table, ForeignKey
-from flask_mail import Mail
-from flask_mail import Message
+from flask_mail import Mail, Message
+from oauthlib.oauth2 import WebApplicationClient
+import requests
+import json
+import os
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 connection_string = "postgresql://data_owner:PFAnX9oJp4wV@ep-green-heart-a78sxj65.ap-southeast-2.aws.neon.tech/figurecircle?sslmode=require"
 
@@ -17,9 +23,10 @@ engine = create_engine(connection_string)
 Base = declarative_base()
 
 user_mentor_association = Table('user_mentor_association', Base.metadata,
-    Column('user_id', Integer, ForeignKey('users.id')),
-    Column('mentor_id', Integer, ForeignKey('mentors.id'))
-)
+                                Column('user_id', Integer, ForeignKey('users.id')),
+                                Column('mentor_id', Integer, ForeignKey('mentors.id'))
+                                )
+
 
 class Mentor(Base):
     __tablename__ = 'mentors'
@@ -30,6 +37,7 @@ class Mentor(Base):
     qualification = Column(String)
     experience = Column(String)
     verified = Column(Boolean, default=False)  # store mentor verification status
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -45,11 +53,12 @@ class User(Base):
     # Establishing a Many-to-Many relationship with Mentor
     mentors = relationship("Mentor", secondary=user_mentor_association)
 
+
 class UserDetails(Base):
     __tablename__ = 'user_details'
 
     id = Column(Integer, primary_key=True)
-    username = Column(String, ForeignKey('users.username'), unique=True) 
+    username = Column(String, ForeignKey('users.username'), unique=True)
     first_name = Column(String)
     last_name = Column(String)
     school_name = Column(String)
@@ -63,9 +72,6 @@ class UserDetails(Base):
     # Establishing a One-to-One relationship with User
     user = relationship("User", back_populates="details")
 
-
-
-
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 Base.metadata.create_all(engine)
@@ -76,22 +82,96 @@ app = Flask(__name__)
 CORS(app)
 app.config['JWT_SECRET_KEY'] = "123456"
 
-
 app.config['MAIL_SERVER'] = "smtp.gmail.com"
-app.config['MAIL_PORT'] = 587 
+app.config['MAIL_PORT'] = 587
 app.config['MAIL_USERNAME'] = 'figurecircle2024@gmail.com'
 app.config['MAIL_PASSWORD'] = 'xcodehmmdifkilyw'
-app.config['MAIL_USE_TLS'] = True 
-app.config['MAIL_USE_SSL'] = False  
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+
+
+
+google_client_id = os.getenv('GOOGLE_CLIENT_ID')
+google_client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+
+app.config['GOOGLE_CLIENT_ID'] = google_client_id
+app.config['GOOGLE_CLIENT_SECRET'] = google_client_secret
+
+app.config['GOOGLE_DISCOVERY_URL'] = (
+    "https://accounts.google.com/.well-known/openid-configuration"
+)
 
 mail = Mail(app)
 
 jwt = JWTManager(app)
 
+client = WebApplicationClient(app.config['GOOGLE_CLIENT_ID'])
+
 
 @app.route('/')
 def home():
     return jsonify({"message": "Welcome to the Recommendation API!"})
+
+
+@app.route('/google_login')
+def google_login():
+    google_provider_cfg = requests.get(app.config['GOOGLE_DISCOVERY_URL']).json()
+    authorization_endpoint = google_provider_cfg["authorization_endpoint"]
+
+    request_uri = client.prepare_request_uri(
+        authorization_endpoint,
+        redirect_uri=request.base_url + "/callback",
+        scope=["openid", "email", "profile"],
+    )
+    return redirect(request_uri)
+
+
+@app.route('/google_login/callback')
+def google_callback():
+    code = request.args.get("code")
+    token_endpoint = requests.get(app.config['GOOGLE_DISCOVERY_URL']).json()["token_endpoint"]
+
+    token_url, headers, body = client.prepare_token_request(
+        token_endpoint,
+        authorization_response=request.url,
+        redirect_url=request.base_url,
+        code=code
+    )
+    token_response = requests.post(
+        token_url,
+        headers=headers,
+        data=body,
+        auth=(app.config['GOOGLE_CLIENT_ID'], app.config['GOOGLE_CLIENT_SECRET']),
+    )
+
+    client.parse_request_body_response(json.dumps(token_response.json()))
+
+    userinfo_endpoint = requests.get(app.config['GOOGLE_DISCOVERY_URL']).json()["userinfo_endpoint"]
+    uri, headers, body = client.add_token(userinfo_endpoint)
+    userinfo_response = requests.get(uri, headers=headers, data=body)
+
+    if userinfo_response.json().get("email_verified"):
+        unique_id = userinfo_response.json()["sub"]
+        users_email = userinfo_response.json()["email"]
+        picture = userinfo_response.json()["picture"]
+        user_name = userinfo_response.json()["given_name"]
+
+        # Use the information provided by Google to either create a new account or log in an existing user
+        session = Session()
+
+        user = session.query(User).filter_by(google_id=unique_id).first()
+        if not user:
+            # Create a new user account if not existing
+            user = User(username=users_email, google_id=unique_id)
+            session.add(user)
+            session.commit()
+
+        access_token = create_access_token(identity=user.username, expires_delta=False)
+        session.close()
+        return jsonify({"access_token": access_token}), 200
+    else:
+        return jsonify({"error": "User email not available or not verified by Google"}), 400
+
 
 # User Registration Endpoint
 @app.route('/register', methods=['POST'])
