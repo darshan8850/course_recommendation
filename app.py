@@ -173,9 +173,8 @@ def google_callback():
         return jsonify({"error": "User email not available or not verified by Google"}), 400
 
 
-# User Registration Endpoint
-@app.route('/register', methods=['POST'])
-def register():
+@app.route('/login', methods=['POST'])
+def login():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -185,24 +184,19 @@ def register():
 
     session = Session()
 
-    # Check if the username already exists
-    if session.query(User).filter_by(username=username).first():
+    # Retrieve the user by username
+    user = session.query(User).filter_by(username=username).first()
+
+    if not user or not check_password_hash(user.password, password):
         session.close()
-        return jsonify({"message": "Username already exists"}), 400
+        return jsonify({"message": "Invalid username or password"}), 401
 
-    # Create a new user
-    hashed_password = generate_password_hash(password)
-    new_user = User(username=username, password=hashed_password)
-    session.add(new_user)
+    # Check if user details are filled
+    data_verified = user.details.data_filled if user.details else False
 
-    # Create empty user details for the new user
-    new_user_details = UserDetails(user=new_user)
-    session.add(new_user_details)
-
-    session.commit()
+    access_token = create_access_token(identity=username, expires_delta=False)
     session.close()
-
-    return jsonify({"message": "User registered successfully"}), 201
+    return jsonify({"access_token": access_token, "data_verified": data_verified}), 200
 
 @app.route('/login', methods=['POST'])
 def login():
