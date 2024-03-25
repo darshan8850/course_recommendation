@@ -166,9 +166,12 @@ def google_callback():
             session.add(user)
             session.commit()
 
+        # Check if user details are filled
+        data_verified = user.details.data_filled if user.details else False
+
         access_token = create_access_token(identity=user.username, expires_delta=False)
         session.close()
-        return jsonify({"access_token": access_token}), 200
+        return jsonify({"access_token": access_token, "data_verified": data_verified}), 200
     else:
         return jsonify({"error": "User email not available or not verified by Google"}), 400
 
