@@ -167,11 +167,11 @@ def google_callback():
             session.commit()
 
         # Check if user details are filled
-        data_verified = user.details.data_filled if user.details else False
+        data_fill = user.details.data_filled if user.details else False
 
         access_token = create_access_token(identity=user.username, expires_delta=False)
         session.close()
-        return jsonify({"access_token": access_token, "data_verified": data_verified}), 200
+        return jsonify({"access_token": access_token, "data_fill": data_fill}), 200
     else:
         return jsonify({"error": "User email not available or not verified by Google"}), 400
 
@@ -225,11 +225,11 @@ def login():
         return jsonify({"message": "Invalid username or password"}), 401
 
     # Check if user details are filled
-    data_verified = user.details.data_filled if user.details else False
+    data_fill = user.details.data_filled if user.details else False
 
     access_token = create_access_token(identity=username, expires_delta=False)
     session.close()
-    return jsonify({"access_token": access_token, "data_verified": data_verified}), 200
+    return jsonify({"access_token": access_token, "data_fill": data_fill}), 200
 
 @app.route('/user_details', methods=['GET', 'POST'])
 @jwt_required()
