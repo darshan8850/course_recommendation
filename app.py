@@ -434,6 +434,39 @@ def add_stream_chosen(username):
 
     return jsonify({"message": "Stream chosen updated successfully"}), 200
 
+@app.route('/assigned_mentors/<username>', methods=['GET'])
+@jwt_required()
+def get_assigned_mentors(username):
+    current_user = get_jwt_identity()
+    if current_user != username:
+        return jsonify({"message": "Unauthorized"}), 401
+
+    session = Session()
+
+    user = session.query(User).filter_by(username=username).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    assigned_mentors = user.mentors  # Fetch assigned mentors using the relationship
+
+    mentor_list = []
+    for mentor in assigned_mentors:
+        mentor_info = {
+            "mentor_id": mentor.id,
+            "mentor_name": mentor.mentor_name,
+            "skills": mentor.skills,
+            "qualification": mentor.qualification,
+            "experience": mentor.experience,
+            "verified": mentor.verified
+        }
+        mentor_list.append(mentor_info)
+
+    session.close()
+
+    return jsonify({"assigned_mentors": mentor_list}), 200
+
 
 # Delete All Users Endpoint
 @app.route('/delete_users', methods=['DELETE'])
