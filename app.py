@@ -68,9 +68,11 @@ class UserDetails(Base):
     activity = Column(String)
     country = Column(String)
     data_filled = Column(Boolean, default=False)
+    stream_chosen = Column(String, default=None)  # New column for stream chosen
 
     # Establishing a One-to-One relationship with User
     user = relationship("User", back_populates="details")
+
 
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
@@ -396,6 +398,41 @@ def assign_mentor():
     session.close()
 
     return jsonify({"message": f"Mentor {mentor_id} assigned to user {user_id} successfully"}), 200
+
+
+@app.route('/add_stream_chosen/<username>', methods=['POST'])
+@jwt_required()
+def add_stream_chosen(username):
+    current_user = get_jwt_identity()
+    if current_user != username:
+        return jsonify({"message": "Unauthorized"}), 401
+
+    session = Session()
+
+    user = session.query(User).filter_by(username=username).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    data = request.get_json()
+    stream_chosen = data.get('stream_chosen')
+
+    if not stream_chosen:
+        session.close()
+        return jsonify({"message": "Stream chosen is required"}), 400
+
+    user_details = user.details
+    if not user_details:
+        user_details = UserDetails(user=user)
+
+    user_details.stream_chosen = stream_chosen
+    user_details.data_filled = True  # Assuming this field should be marked as filled
+
+    session.commit()
+    session.close()
+
+    return jsonify({"message": "Stream chosen updated successfully"}), 200
 
 
 # Delete All Users Endpoint
