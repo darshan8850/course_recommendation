@@ -467,6 +467,63 @@ def get_assigned_mentors(username):
 
     return jsonify({"assigned_mentors": mentor_list}), 200
 
+@app.route('/chosen_stream/<username>', methods=['GET'])
+@jwt_required()
+def get_chosen_stream(username):
+    current_user = get_jwt_identity()
+    if current_user != username:
+        return jsonify({"message": "Unauthorized"}), 401
+
+    session = Session()
+
+    user = session.query(User).filter_by(username=username).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    user_details = user.details
+
+    if not user_details:
+        session.close()
+        return jsonify({"message": "User details not found"}), 404
+
+    chosen_stream = user_details.stream_chosen
+
+    session.close()
+
+    return jsonify({"chosen_stream": chosen_stream}), 200
+
+
+@app.route('/assigned_users/<mentor_id>', methods=['GET'])
+@jwt_required()
+def get_assigned_users(mentor_id):
+    session = Session()
+
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+
+    if not mentor:
+        session.close()
+        return jsonify({"message": "Mentor not found"}), 404
+
+    assigned_users = mentor.users  # Fetch assigned users using the relationship
+
+    user_list = []
+    for user in assigned_users:
+        user_info = {
+            "user_id": user.id,
+            "username": user.username,
+            "first_name": user.details.first_name if user.details else None,
+            "last_name": user.details.last_name if user.details else None,
+            "email": user.username,  # Assuming username is the email
+        }
+        user_list.append(user_info)
+
+    session.close()
+
+    return jsonify({"assigned_users": user_list}), 200
+
+
 
 # Delete All Users Endpoint
 @app.route('/delete_users', methods=['DELETE'])
