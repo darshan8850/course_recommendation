@@ -400,16 +400,14 @@ def assign_mentor():
     return jsonify({"message": f"Mentor {mentor_id} assigned to user {user_id} successfully"}), 200
 
 
-@app.route('/add_stream_chosen/<username>', methods=['POST'])
+@app.route('/add_stream_chosen', methods=['PUT'])
 @jwt_required()
-def add_stream_chosen(username):
-    current_user = get_jwt_identity()
-    if current_user != username:
-        return jsonify({"message": "Unauthorized"}), 401
-
+def add_stream_chosen():
+    current_user = get_jwt_identity()  # Retrieve username from the JWT token
+    
     session = Session()
 
-    user = session.query(User).filter_by(username=username).first()
+    user = session.query(User).filter_by(username=current_user).first()
 
     if not user:
         session.close()
@@ -434,16 +432,15 @@ def add_stream_chosen(username):
 
     return jsonify({"message": "Stream chosen updated successfully"}), 200
 
-@app.route('/assigned_mentors/<username>', methods=['GET'])
+
+@app.route('/assigned_mentors', methods=['GET'])
 @jwt_required()
-def get_assigned_mentors(username):
+def get_assigned_mentors():
     current_user = get_jwt_identity()
-    if current_user != username:
-        return jsonify({"message": "Unauthorized"}), 401
 
     session = Session()
 
-    user = session.query(User).filter_by(username=username).first()
+    user = session.query(User).filter_by(username=current_user).first()
 
     if not user:
         session.close()
@@ -467,16 +464,15 @@ def get_assigned_mentors(username):
 
     return jsonify({"assigned_mentors": mentor_list}), 200
 
-@app.route('/chosen_stream/<username>', methods=['GET'])
+
+@app.route('/chosen_stream', methods=['GET'])
 @jwt_required()
-def get_chosen_stream(username):
+def get_chosen_stream():
     current_user = get_jwt_identity()
-    if current_user != username:
-        return jsonify({"message": "Unauthorized"}), 401
 
     session = Session()
 
-    user = session.query(User).filter_by(username=username).first()
+    user = session.query(User).filter_by(username=current_user).first()
 
     if not user:
         session.close()
@@ -495,16 +491,20 @@ def get_chosen_stream(username):
     return jsonify({"chosen_stream": chosen_stream}), 200
 
 
-@app.route('/assigned_users/<mentor_id>', methods=['GET'])
+
+@app.route('/assigned_users', methods=['GET'])
 @jwt_required()
-def get_assigned_users(mentor_id):
+def get_assigned_users():
+    current_user = get_jwt_identity()
+
     session = Session()
 
-    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+    # Query the mentor associated with the current authenticated user
+    mentor = session.query(Mentor).join(User.mentors).filter(User.username == current_user).first()
 
     if not mentor:
         session.close()
-        return jsonify({"message": "Mentor not found"}), 404
+        return jsonify({"message": "Mentor not found for the current user"}), 404
 
     assigned_users = mentor.users  # Fetch assigned users using the relationship
 
