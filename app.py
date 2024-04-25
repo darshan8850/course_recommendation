@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-connection_string = "postgresql://data_owner:PFAnX9oJp4wV@ep-green-heart-a78sxj65.ap-southeast-2.aws.neon.tech/figurecircle?sslmode=require"
+connection_string = "postgresql://neondb_owner:DsyRQ3YCe0BH@ep-spring-king-a1xyegni.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
 
 engine = create_engine(connection_string)
 
