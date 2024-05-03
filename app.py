@@ -476,6 +476,29 @@ def get_unverified_mentors():
 
     return jsonify({"unverified_mentors": mentor_list}), 200
 
+@app.route('/assign_mentor', methods=['POST'])
+@jwt_required()
+def assign_mentor():
+    current_user = get_jwt_identity()
+    session = Session()
+    
+    data = request.get_json()
+    mentor_id = data.get('mentor_id')
+    user_id = data.get('user_id')
+
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+    user = session.query(User).filter_by(id=user_id).first()
+
+    if not mentor or not user:
+        session.close()
+        return jsonify({"message": "Mentor or user not found"}), 404
+
+    # Assign the mentor to the user
+    user.mentors.append(mentor)
+    session.commit()
+    session.close()
+
+    return jsonify({"message": f"Mentor {mentor_id} assigned to user {user_id} successfully"}), 200
 
 @app.route('/add_stream_chosen', methods=['PUT'])
 @jwt_required()
