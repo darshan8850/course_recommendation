@@ -12,6 +12,8 @@ import requests
 import json
 import os
 from dotenv import load_dotenv
+from sqlalchemy import LargeBinary
+import base64
 
 
 load_dotenv()
@@ -27,16 +29,22 @@ user_mentor_association = Table('user_mentor_association', Base.metadata,
                                 Column('mentor_id', Integer, ForeignKey('mentors.id'))
                                 )
 
-
 class Mentor(Base):
     __tablename__ = 'mentors'
 
     id = Column(Integer, primary_key=True)
     mentor_name = Column(String)
-    skills = Column(String)
-    qualification = Column(String)
-    experience = Column(String)
-    verified = Column(Boolean, default=False)  # store mentor verification status
+    profile_photo = Column(LargeBinary)  # Store mentor's profile photo as binary data
+    description = Column(String)
+    highest_degree = Column(String)
+    expertise = Column(String)
+    recent_project = Column(String)
+    meeting_time = Column(String)
+    fees = Column(String)
+    stream = Column(String)
+    country = Column(String)
+    verified = Column(Boolean, default=False)
+ # store mentor verification status
 
 
 class User(Base):
@@ -299,23 +307,36 @@ def add_mentor():
 
     data = request.get_json()
     mentor_name = data.get('mentor_name')
-    skills = data.get('skills')
-    qualification = data.get('qualification')
-    experience = data.get('experience')
+    profile_photo_base64 = data.get('profile_photo')  #  profile photo is sent as base64-encoded string
+    description = data.get('description')
+    highest_degree = data.get('highest_degree')
+    expertise = data.get('expertise')
+    recent_project = data.get('recent_project')
+    meeting_time = data.get('meeting_time')
+    fees = data.get('fees')
+    stream = data.get('stream')
+    country = data.get('country')
     sender_email = data.get('sender_email')
 
-    if not all([mentor_name, skills, qualification, experience]):
+    if not all([mentor_name, profile_photo_base64, description, highest_degree, expertise, recent_project, meeting_time, fees, stream, country]):
         session.close()
         return jsonify({"message": "Missing mentor details"}), 400
 
     try:
-        new_mentor = Mentor(mentor_name=mentor_name, skills=skills, qualification=qualification, experience=experience,verified=False)
+        # Decode base64-encoded image data to binary
+        profile_photo_binary = base64.b64decode(profile_photo_base64)
+
+        new_mentor = Mentor(
+            mentor_name=mentor_name, profile_photo=profile_photo_binary, description=description,
+            highest_degree=highest_degree, expertise=expertise, recent_project=recent_project,
+            meeting_time=meeting_time, fees=fees, stream=stream, country=country, verified=False
+        )
         session.add(new_mentor)
         session.commit()
 
         # Send verification email 
         msg = Message('New Mentor Verification', sender=sender_email, recipients=['admin_email@example.com'])
-        msg.body = f"Please verify the new mentor:\n\nID: {new_mentor.id}\nName: {mentor_name}\nSkills: {skills}\nQualification: {qualification}\nExperience: {experience}"
+        msg.body = f"Please verify the new mentor:\n\nID: {new_mentor.id}\nName: {mentor_name}\nStream: {stream}\nCountry: {country}"
         mail.send(msg)
 
         session.close()
@@ -324,8 +345,58 @@ def add_mentor():
         session.close()
         return jsonify({"message": f"Failed to add mentor: {str(e)}"}), 500
 
+@app.route('/update_mentor/<int:mentor_id>', methods=['PUT'])
+@jwt_required()
+def update_mentor(mentor_id):
+    session = Session()
+
+    # Query the mentor by mentor_id
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+
+    if not mentor:
+        session.close()
+        return jsonify({"message": "Mentor not found"}), 404
+
+    # Get updated data from request body
+    data = request.get_json()
+    mentor_name = data.get('mentor_name')
+    description = data.get('description')
+    highest_degree = data.get('highest_degree')
+    expertise = data.get('expertise')
+    recent_project = data.get('recent_project')
+    meeting_time = data.get('meeting_time')
+    fees = data.get('fees')
+    stream = data.get('stream')
+    country = data.get('country')
+
+    # Update mentor details
+    if mentor_name:
+        mentor.mentor_name = mentor_name
+    if description:
+        mentor.description = description
+    if highest_degree:
+        mentor.highest_degree = highest_degree
+    if expertise:
+        mentor.expertise = expertise
+    if recent_project:
+        mentor.recent_project = recent_project
+    if meeting_time:
+        mentor.meeting_time = meeting_time
+    if fees:
+        mentor.fees = fees
+    if stream:
+        mentor.stream = stream
+    if country:
+        mentor.country = country
+
+    session.commit()
+    session.close()
+
+    return jsonify({"message": "Mentor details updated successfully"}), 200
+
 
 @app.route('/verify_mentor/<int:mentor_id>', methods=['PUT'])
+@jwt_required()
 def verify_mentor(mentor_id):
     session = Session()
 
@@ -341,22 +412,6 @@ def verify_mentor(mentor_id):
 
     return jsonify({"message": "Mentor verified successfully"}), 200
 
-@app.route('/unverified_mentors', methods=['GET'])
-@jwt_required()
-def get_unverified_mentors():
-    current_user = get_jwt_identity()
-    session = Session()
-
-    # Query unverified mentors
-    unverified_mentors = session.query(Mentor).filter_by(verified=False).all()
-
-    mentor_list = [{"id": mentor.id, "mentor_name": mentor.mentor_name, "skills": mentor.skills,
-                    "qualification": mentor.qualification, "experience": mentor.experience,
-                    "verified": mentor.verified} for mentor in unverified_mentors]
-
-    session.close()
-
-    return jsonify({"unverified_mentors": mentor_list}), 200
 
 @app.route('/verified_mentors', methods=['GET'])
 @jwt_required()
@@ -367,37 +422,59 @@ def get_verified_mentors():
     # Query verified mentors
     verified_mentors = session.query(Mentor).filter_by(verified=True).all()
 
-    mentor_list = [{"id": mentor.id, "mentor_name": mentor.mentor_name, "skills": mentor.skills,
-                    "qualification": mentor.qualification, "experience": mentor.experience,
-                    "verified": mentor.verified} for mentor in verified_mentors]
+    mentor_list = []
+    for mentor in verified_mentors:
+        mentor_info = {
+            "id": mentor.id,
+            "mentor_name": mentor.mentor_name,
+            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "description": mentor.description,
+            "highest_degree": mentor.highest_degree,
+            "expertise": mentor.expertise,
+            "recent_project": mentor.recent_project,
+            "meeting_time": mentor.meeting_time,
+            "fees": mentor.fees,
+            "stream": mentor.stream,
+            "country": mentor.country,
+            "verified": mentor.verified
+        }
+        mentor_list.append(mentor_info)
 
     session.close()
 
     return jsonify({"verified_mentors": mentor_list}), 200
 
-@app.route('/assign_mentor', methods=['POST'])
+
+@app.route('/unverified_mentors', methods=['GET'])
 @jwt_required()
-def assign_mentor():
+def get_unverified_mentors():
     current_user = get_jwt_identity()
     session = Session()
-    
-    data = request.get_json()
-    mentor_id = data.get('mentor_id')
-    user_id = data.get('user_id')
 
-    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
-    user = session.query(User).filter_by(id=user_id).first()
+    # Query unverified mentors
+    unverified_mentors = session.query(Mentor).filter_by(verified=False).all()
 
-    if not mentor or not user:
-        session.close()
-        return jsonify({"message": "Mentor or user not found"}), 404
+    mentor_list = []
+    for mentor in unverified_mentors:
+        mentor_info = {
+            "id": mentor.id,
+            "mentor_name": mentor.mentor_name,
+            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "description": mentor.description,
+            "highest_degree": mentor.highest_degree,
+            "expertise": mentor.expertise,
+            "recent_project": mentor.recent_project,
+            "meeting_time": mentor.meeting_time,
+            "fees": mentor.fees,
+            "stream": mentor.stream,
+            "country": mentor.country,
+            "verified": mentor.verified
+        }
+        mentor_list.append(mentor_info)
 
-    # Assign the mentor to the user
-    user.mentors.append(mentor)
-    session.commit()
     session.close()
 
-    return jsonify({"message": f"Mentor {mentor_id} assigned to user {user_id} successfully"}), 200
+    return jsonify({"unverified_mentors": mentor_list}), 200
 
 
 @app.route('/add_stream_chosen', methods=['PUT'])
@@ -437,7 +514,6 @@ def add_stream_chosen():
 @jwt_required()
 def get_assigned_mentors():
     current_user = get_jwt_identity()
-
     session = Session()
 
     user = session.query(User).filter_by(username=current_user).first()
@@ -451,11 +527,17 @@ def get_assigned_mentors():
     mentor_list = []
     for mentor in assigned_mentors:
         mentor_info = {
-            "mentor_id": mentor.id,
+            "id": mentor.id,
             "mentor_name": mentor.mentor_name,
-            "skills": mentor.skills,
-            "qualification": mentor.qualification,
-            "experience": mentor.experience,
+            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "description": mentor.description,
+            "highest_degree": mentor.highest_degree,
+            "expertise": mentor.expertise,
+            "recent_project": mentor.recent_project,
+            "meeting_time": mentor.meeting_time,
+            "fees": mentor.fees,
+            "stream": mentor.stream,
+            "country": mentor.country,
             "verified": mentor.verified
         }
         mentor_list.append(mentor_info)
@@ -463,6 +545,7 @@ def get_assigned_mentors():
     session.close()
 
     return jsonify({"assigned_mentors": mentor_list}), 200
+
 
 
 @app.route('/chosen_stream', methods=['GET'])
