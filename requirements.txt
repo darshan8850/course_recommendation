@@ -8,3 +8,4 @@ requests
 python-dotenv
 psycopg2
 gunicorn
+flask-socketio
