@@ -23,7 +23,7 @@ from flask_socketio import SocketIO
 
 load_dotenv()
 
-connection_string = "postgresql://neondb_owner:DsyRQ3YCe0BH@ep-spring-king-a1xyegni.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+connection_string = "postgresql://neondb_owner:Pl8cWUu0iLHn@ep-tiny-haze-a1w7wrrg.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
 
 engine = create_engine(connection_string)
 
