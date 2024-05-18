@@ -374,6 +374,56 @@ def user_details():
             return jsonify({"message": f"Failed to add/update user details: {str(e)}"}), 500
 
 
+@app.route('/update_user_details_diff', methods=['POST'])
+@jwt_required()
+def update_user_details_diff():
+    current_user = get_jwt_identity()
+    session = Session()
+
+    user = session.query(User).filter_by(username=current_user).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    data = request.get_json()
+
+    updates = {}
+    if 'first_name' in data and data['first_name'] != user.details.first_name:
+        updates['first_name'] = data['first_name']
+    if 'last_name' in data and data['last_name'] != user.details.last_name:
+        updates['last_name'] = data['last_name']
+    if 'school_name' in data and data['school_name'] != user.details.school_name:
+        updates['school_name'] = data['school_name']
+    if 'bachelors_degree' in data and data['bachelors_degree'] != user.details.bachelors_degree:
+        updates['bachelors_degree'] = data['bachelors_degree']
+    if 'masters_degree' in data and data['masters_degree'] != user.details.masters_degree:
+        updates['masters_degree'] = data['masters_degree']
+    if 'certification' in data and data['certification'] != user.details.certification:
+        updates['certification'] = data['certification']
+    if 'activity' in data and data['activity'] != user.details.activity:
+        updates['activity'] = data['activity']
+    if 'country' in data and data['country'] != user.details.country:
+        updates['country'] = data['country']
+    if 'stream_name' in data and data['stream_name'] != user.details.stream_name:
+        updates['stream_name'] = data['stream_name']
+
+    if not updates:
+        session.close()
+        return jsonify({"message": "No changes detected"}), 200
+
+    for key, value in updates.items():
+        setattr(user.details, key, value)
+
+    try:
+        session.commit()
+        session.close()
+        return jsonify({"message": "User details updated successfully"}), 200
+    except Exception as e:
+        session.rollback()
+        session.close()
+        return jsonify({"message": f"Failed to update user details: {str(e)}"}), 500
+
 @app.route('/streams', methods=['POST'])
 @jwt_required()
 def create_stream():
