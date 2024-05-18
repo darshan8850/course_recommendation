@@ -102,7 +102,7 @@ class UserDetails(Base):
     user = relationship("User", back_populates="details")
     stream = relationship("Stream", backref="user_details") 
     
-class Message(Base):
+class Msg(Base):
     __tablename__ = 'messages'
 
     id = Column(Integer, primary_key=True)
@@ -544,34 +544,36 @@ def add_mentor():
         session.close()
         return jsonify({"message": "Missing mentor details"}), 400
 
-    try:
-
-        profile_photo_binary = base64.b64decode(profile_photo_base64)
-
-        stream = session.query(Stream).filter_by(name=stream_name).first()
-        if not stream:
-            session.close()
-            return jsonify({"message": "Stream does not exist"}), 404
-
-        # Create a new mentor with the provided details
-        new_mentor = Mentor(
-            mentor_name=mentor_name, username=username, profile_photo=profile_photo_binary, description=description,
-            highest_degree=highest_degree, expertise=expertise, recent_project=recent_project,
-            meeting_time=meeting_time, fees=fees, stream_name=stream_name, country=country, verified=False
-        )
-        session.add(new_mentor)
-        session.commit()
-        print("mentor added")
-
-        msg = Message('New Mentor Verification', sender=sender_email, recipients=['admin_email@example.com'])
-        msg.body = f"Please verify the new mentor:\n\nID: {new_mentor.id}\nName: {mentor_name}\nStream: {stream_name}\nCountry: {country}"
-        mail.send(msg)
-
+    
+    existing_mentor = session.query(Mentor).filter_by(username=username).first()
+    if existing_mentor:
         session.close()
-        return jsonify({"message": "Mentor added successfully. Verification email sent to admin."}), 201
-    except Exception as e:
+        return jsonify({"message": "Username already exists or data is already exists"}), 400
+
+    profile_photo_binary = base64.b64decode(profile_photo_base64)
+
+    stream = session.query(Stream).filter_by(name=stream_name).first()
+    if not stream:
         session.close()
-        return jsonify({"message": f"Failed to add mentor: {str(e)}"}), 500
+        return jsonify({"message": "Stream does not exist"}), 404
+
+    # Create a new mentor with the provided details
+    new_mentor = Mentor(
+        mentor_name=mentor_name, username=username, profile_photo=profile_photo_binary, description=description,
+        highest_degree=highest_degree, expertise=expertise, recent_project=recent_project,
+        meeting_time=meeting_time, fees=fees, stream_name=stream_name, country=country, verified=False
+    )
+    session.add(new_mentor)
+    session.commit()
+    print("mentor added")
+
+    msg = Message('New Mentor Verification', sender=sender_email, recipients=['admin_email@example.com'])
+    msg.body = f"Please verify the new mentor:\n\nID: {new_mentor.id}\nName: {mentor_name}\nStream: {stream_name}\nCountry: {country}"
+    mail.send(msg)
+
+    session.close()
+    return jsonify({"message": "Mentor added successfully. Verification email sent to admin."}), 201
+
 
 
 @app.route('/update_mentor/<int:mentor_id>', methods=['PUT'])
@@ -954,7 +956,7 @@ def handle_message(data):
         emit('message_status', {'success': False, 'message': 'Sender or receiver not found'})
         return
 
-    new_message = Message(sender_id=sender_id, receiver_id=receiver_id, message=message_text)
+    new_message = Msg(sender_id=sender_id, receiver_id=receiver_id, message=message_text)
     session.add(new_message)
     session.commit()
     session.close()
