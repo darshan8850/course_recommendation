@@ -23,7 +23,7 @@ from flask_socketio import SocketIO
 
 load_dotenv()
 
-connection_string = "postgresql://neondb_owner:Pl8cWUu0iLHn@ep-tiny-haze-a1w7wrrg.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+connection_string = "postgresql://neondb_owner:Pl8cWUu0iLHn@ep-tiny-haze-a1w7wrrg.ap-southeast-1.aws.neon.tech/figure_circle?sslmode=require"
 
 engine = create_engine(connection_string)
 
@@ -53,6 +53,7 @@ class Mentor(Base):
 
     id = Column(Integer, primary_key=True)
     mentor_name = Column(String)
+    username = Column(String, unique=True)
     profile_photo = Column(LargeBinary)  
     description = Column(String)
     highest_degree = Column(String)
@@ -527,6 +528,7 @@ def add_mentor():
 
     data = request.get_json()
     mentor_name = data.get('mentor_name')
+    username = data.get('username')
     profile_photo_base64 = data.get('profile_photo')  # profile photo is sent as base64-encoded string
     description = data.get('description')
     highest_degree = data.get('highest_degree')
@@ -538,7 +540,7 @@ def add_mentor():
     country = data.get('country')
     sender_email = data.get('sender_email')
 
-    if not all([mentor_name, profile_photo_base64, description, highest_degree, expertise, recent_project, meeting_time, fees, stream_name, country]):
+    if not all([mentor_name, username, profile_photo_base64, description, highest_degree, expertise, recent_project, meeting_time, fees, stream_name, country]):
         session.close()
         return jsonify({"message": "Missing mentor details"}), 400
 
@@ -553,12 +555,13 @@ def add_mentor():
 
         # Create a new mentor with the provided details
         new_mentor = Mentor(
-            mentor_name=mentor_name, profile_photo=profile_photo_binary, description=description,
+            mentor_name=mentor_name, username=username, profile_photo=profile_photo_binary, description=description,
             highest_degree=highest_degree, expertise=expertise, recent_project=recent_project,
             meeting_time=meeting_time, fees=fees, stream_name=stream_name, country=country, verified=False
         )
         session.add(new_mentor)
         session.commit()
+        print("mentor added")
 
         msg = Message('New Mentor Verification', sender=sender_email, recipients=['admin_email@example.com'])
         msg.body = f"Please verify the new mentor:\n\nID: {new_mentor.id}\nName: {mentor_name}\nStream: {stream_name}\nCountry: {country}"
@@ -586,6 +589,7 @@ def update_mentor(mentor_id):
     # Get updated data from request body
     data = request.get_json()
     mentor_name = data.get('mentor_name')
+    username = data.get('username')
     description = data.get('description')
     highest_degree = data.get('highest_degree')
     expertise = data.get('expertise')
@@ -598,6 +602,8 @@ def update_mentor(mentor_id):
     # Update mentor details
     if mentor_name:
         mentor.mentor_name = mentor_name
+    if username:
+        mentor.username = username
     if description:
         mentor.description = description
     if highest_degree:
@@ -648,6 +654,7 @@ def mentors_by_stream():
         for mentor in mentors:
             mentor_info = {
                 "mentor_id": mentor.id,
+                "username": mentor.username, 
                 "mentor_name": mentor.mentor_name,
                 "profile_photo": mentor.profile_photo.decode('utf-8'),  
                 "description": mentor.description,
@@ -714,6 +721,7 @@ def get_verified_mentors():
         mentor_info = {
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
+            "username": mentor.username,
             "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
@@ -756,6 +764,7 @@ def get_unverified_mentors():
         mentor_info = {
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
+            "username": mentor.username,  
             "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
@@ -852,6 +861,7 @@ def get_assigned_mentors():
         mentor_info = {
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
+            "username": mentor.username,  
             "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
