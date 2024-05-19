@@ -19,6 +19,8 @@ import base64
 from datetime import datetime
 from flask_socketio import emit
 from flask_socketio import SocketIO
+import stripe
+
 
 
 load_dotenv()
@@ -133,7 +135,9 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 
 
-
+stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_SECRET_KEY= os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 google_client_id = os.getenv('GOOGLE_CLIENT_ID')
 google_client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
 
@@ -808,6 +812,92 @@ def assign_mentor():
     session.close()
 
     return jsonify({"message": f"Mentor {mentor_id} assigned to user {user_id} successfully"}), 200
+
+@app.route('/create_payment_intent', methods=['POST'])
+@jwt_required()
+def create_payment_intent():
+    data = request.get_json()
+    mentor_id = data.get('mentor_id')
+
+    if not mentor_id:
+        return jsonify({"message": "Mentor ID is required"}), 400
+
+    session = Session()
+    user_id = get_jwt_identity()
+    user = session.query(User).filter_by(id=user_id).first()
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    if not mentor:
+        session.close()
+        return jsonify({"message": "Mentor not found"}), 404
+
+    try:
+    
+        amount = int(float(mentor.fees) * 100)
+
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency='usd',  # Set the appropriate currency
+            automatic_payment_methods={
+                'enabled': True,
+            },
+        )
+
+        return jsonify({
+            'client_secret': payment_intent['client_secret'],
+            'publishable_key': os.getenv('STRIPE_PUBLISHABLE_KEY')
+        }), 200
+
+    except Exception as e:
+        session.close()
+        return jsonify(error=str(e)), 500
+
+
+@app.route('/confirm_payment', methods=['POST'])
+@jwt_required()
+def confirm_payment():
+    data = request.get_json()
+    mentor_id = data.get('mentor_id')
+    payment_intent_id = data.get('payment_intent_id')
+
+    if not mentor_id or not payment_intent_id:
+        return jsonify({"message": "Mentor ID and Payment Intent ID are required"}), 400
+
+    session = Session()
+    user_id = get_jwt_identity()
+    user = session.query(User).filter_by(id=user_id).first()
+    mentor = session.query(Mentor).filter_by(id=mentor_id).first()
+
+    if not user:
+        session.close()
+        return jsonify({"message": "User not found"}), 404
+
+    if not mentor:
+        session.close()
+        return jsonify({"message": "Mentor not found"}), 404
+
+    try:
+        # Retrieve the payment intent to confirm the payment status
+        payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+
+        if payment_intent.status == 'succeeded':
+            # Assign the mentor to the user
+            user.mentors.append(mentor)
+            session.commit()
+            session.close()
+            return jsonify({"message": "Payment successful and mentor assigned!"}), 200
+        else:
+            session.close()
+            return jsonify({"message": "Payment not completed"}), 400
+
+    except Exception as e:
+        session.close()
+        return jsonify(error=str(e)), 500
+
 
 '''
 @app.route('/add_stream_chosen', methods=['PUT'])
