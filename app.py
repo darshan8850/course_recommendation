@@ -662,7 +662,7 @@ def mentors_by_stream():
                 "mentor_id": mentor.id,
                 "username": mentor.username, 
                 "mentor_name": mentor.mentor_name,
-                "profile_photo": mentor.profile_photo.decode('utf-8'),  
+                "profile_photo": mentor.profile_photo.decode('utf-8', 'ignore'),  
                 "description": mentor.description,
                 "highest_degree": mentor.highest_degree,
                 "expertise": mentor.expertise,
@@ -728,7 +728,7 @@ def get_verified_mentors():
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
             "username": mentor.username,
-            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "profile_photo": mentor.profile_photo.decode('utf-8', 'ignore'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
             "expertise": mentor.expertise,
@@ -771,7 +771,7 @@ def get_unverified_mentors():
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
             "username": mentor.username,  
-            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "profile_photo": mentor.profile_photo.decode('utf-8', 'ignore'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
             "expertise": mentor.expertise,
@@ -954,7 +954,7 @@ def get_assigned_mentors():
             "id": mentor.id,
             "mentor_name": mentor.mentor_name,
             "username": mentor.username,  
-            "profile_photo": mentor.profile_photo.decode('utf-8'),  # Decode binary photo to string
+            "profile_photo": mentor.profile_photo.decode('utf-8', 'ignore'),  # Decode binary photo to string
             "description": mentor.description,
             "highest_degree": mentor.highest_degree,
             "expertise": mentor.expertise,
